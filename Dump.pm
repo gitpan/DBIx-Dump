@@ -25,7 +25,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw(
 
 );
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new
 {
@@ -43,7 +43,7 @@ my $excel = sub {
 
 	require Spreadsheet::WriteExcel;
 
-	my $workbook = Spreadsheet::WriteExcel->new($self->{output} || "db.xls");
+	my $workbook = Spreadsheet::WriteExcel->new($self->{output});
 
 	my $worksheet = $workbook->addworksheet();
 
@@ -53,9 +53,9 @@ my $excel = sub {
 	$format->set_align('center');
 
 	my $col = 0; my $row = 0;
-	my @cols = $self->{sth}->{NAME_uc};
+	my $cols = $self->{sth}->{NAME_uc};
 
-	foreach my $data (@cols)
+	foreach my $data (@$cols)
 	{
 		$worksheet->write(0, $col, $data, $format);
 		$col++;
@@ -76,17 +76,47 @@ my $excel = sub {
 	$row = 0;
 };
 
+my $csv = sub {
+
+	my $self = shift;
+
+	require Text::CSV_XS;
+	require IO::File;
+
+	my $fh = IO::File->new("$self->{output}", "w");
+
+	my $csvobj = Text::CSV_XS->new({
+    'quote_char'  => '"',
+    'escape_char' => '"',
+    'sep_char'    => ',',
+    'binary'      => 0
+	});
+
+
+	my $cols = $self->{sth}->{NAME_uc};
+	$csvobj->combine(@$cols);
+	print $fh $csvobj->string(), "\n";
+
+	while (my @data = $self->{sth}->fetchrow_array())
+	{
+		$csvobj->combine(@data);
+		print $fh $csvobj->string(), "\n";
+	}
+	$fh->close();
+};
+
 my %formats = (
 								'excel' => $excel,
-								#'csv'		=> $csv
+								'csv'		=> $csv
 							);
 
 sub dump
 {
 	my $self = shift;
-	my $attr = {%$self, @_};
+	my $attr = {@_};
+	$self = {%$self, %$attr};
 
-	$formats{$attr->{'format'}}->($self);
+	$formats{$self->{'format'}}->($self);
 }
 
 

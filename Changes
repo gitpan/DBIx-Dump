@@ -10,3 +10,6 @@ Revision history for Perl extension DBIx::Dump.
 0.03  Thur Oct  3
 	- Added an event driven SAX-like interface to allow event handler definition
 
+0.04  Fri Oct 25
+	- Fixed a uninitialized value bug for excelFormat property (thanks to Allen Byington)
+

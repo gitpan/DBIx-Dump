@@ -25,7 +25,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw(
 
 );
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 sub new
 {
@@ -68,7 +68,6 @@ my $excel = sub {
 		foreach my $data (@data)
 		{
 			$self->{eventHandler}->($self, \$data, $cols->[$col], $row+1) if $self->{eventHandler};
-			print $self->{excelFormat}; exit if $col == 3;
 			$worksheet->write($row, $col, $data, $self->{excelFormat});
 			$col++;
 		}

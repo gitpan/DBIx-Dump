@@ -25,7 +25,7 @@ our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw(
 
 );
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub new
 {
@@ -41,23 +41,23 @@ my $excel = sub {
 
 	my $self = shift;
 
+	$self->{excelFormat} = undef;
+
 	require Spreadsheet::WriteExcel;
 
-	my $workbook = Spreadsheet::WriteExcel->new($self->{output});
+	my $workbook = $self->{Generator} || Spreadsheet::WriteExcel->new($self->{output});
+	$self->{Generator} = $workbook;
 
 	my $worksheet = $workbook->addworksheet();
 
-	my $format = $workbook->addformat(); # Add a format
-	$format->set_bold();
-	$format->set_color('red');
-	$format->set_align('center');
-
 	my $col = 0; my $row = 0;
+
 	my $cols = $self->{sth}->{NAME_uc};
 
 	foreach my $data (@$cols)
 	{
-		$worksheet->write(0, $col, $data, $format);
+		$self->{eventHandler}->($self, \$data, $cols->[$col], 1) if $self->{eventHandler};
+		$worksheet->write(0, $col, $data, $self->{excelFormat});
 		$col++;
 	}
 	$row++;
@@ -67,13 +67,16 @@ my $excel = sub {
 	{
 		foreach my $data (@data)
 		{
-			$worksheet->write($row, $col, $data);
+			$self->{eventHandler}->($self, \$data, $cols->[$col], $row+1) if $self->{eventHandler};
+			print $self->{excelFormat}; exit if $col == 3;
+			$worksheet->write($row, $col, $data, $self->{excelFormat});
 			$col++;
 		}
 		$col = 0;
 		$row++;
 	}
 	$row = 0;
+	_clean_up($self);
 };
 
 my $csv = sub {
@@ -85,29 +88,57 @@ my $csv = sub {
 
 	my $fh = IO::File->new("$self->{output}", "w");
 
-	my $csvobj = Text::CSV_XS->new({
+	my $csvobj = $self->{Generator} || Text::CSV_XS->new({
     'quote_char'  => '"',
     'escape_char' => '"',
     'sep_char'    => ',',
     'binary'      => 0
 	});
 
+	$self->{Generator} = $csvobj;
 
 	my $cols = $self->{sth}->{NAME_uc};
 	$csvobj->combine(@$cols);
 	print $fh $csvobj->string(), "\n";
 
+	my $row = 0;
 	while (my @data = $self->{sth}->fetchrow_array())
 	{
+		my $col = 0;
+		foreach my $data (@data)
+		{
+			$self->{eventHandler}->($self, \$data, $cols->[$col], $row+1) if $self->{eventHandler};
+			$col++;
+		}
 		$csvobj->combine(@data);
 		print $fh $csvobj->string(), "\n";
+		$row++;
 	}
+	$row = 0;
 	$fh->close();
+	_clean_up($self);
 };
 
+
+#### This is experimental, don't use!!!!! ####
+my $iQuery = sub {
+
+	my $self = shift;
+
+	require IO::File;
+
+	my $fh = IO::File->new("$self->{output}", "w");
+
+	my $stmt = $self->{sth}->{Statement};
+	$stmt =~ /from\s+(.*)\s+(where|order by|group by)*/i;
+	my @tables;
+};
+###############################################
+
 my %formats = (
-								'excel' => $excel,
-								'csv'		=> $csv
+								'excel'  => $excel,
+								'csv'		 => $csv,
+								'iQuery' => $iQuery
 							);
 
 sub dump
@@ -119,6 +150,13 @@ sub dump
 	$formats{$self->{'format'}}->($self);
 }
 
+sub _clean_up
+{
+	my $self = shift;
+
+	$self->{Generator} = undef;
+	$self->{excelFormat} = undef;
+}
 
 # Preloaded methods go here.
 
@@ -141,7 +179,7 @@ DBIx::Dump - Perl extension for dumping database (DBI) data into a variety of fo
 	my $sth = $dbh->prepare("select * from foo");
 	$sth->execute();
 
-	my $exceldb = DBIx::Dump->new('format' => 'excel', 'ouput' => 'db.xls', 'sth' => $sth);
+	my $exceldb = DBIx::Dump->new('format' => 'excel', 'ouput' => 'db.xls', 'sth' => $sth, EventHandler => \@handler);
 	$exceldb->dump();
 
 =head1 DESCRIPTION

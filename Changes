@@ -1,0 +1,6 @@
+Revision history for Perl extension DBIx::Dump.
+
+0.01  Tue Oct  1 11:35:35 2002
+	- original version; created by h2xs 1.21 with options
+		-X -c DBIx::Dump
+
